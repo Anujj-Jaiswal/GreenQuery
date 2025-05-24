@@ -13,6 +13,12 @@ from langchain_google_genai import GoogleGenerativeAI
 # === Load Environment Variables ===
 load_dotenv()
 
+st.set_page_config(
+    page_title="GreenQuery - Smart Sustainability Insights",
+    page_icon="🌿",
+    layout="wide"
+)
+
 # === Custom Streamlit Response Parser ===
 class StreamlitResponse(ResponseParser):
     def _init(self, context):
