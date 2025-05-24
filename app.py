@@ -3,8 +3,6 @@ import os
 import pandas as pd
 import streamlit as st
 import numpy as np
-import sounddevice as sd
-import speech_recognition as sr
 import pymysql
 from dotenv import load_dotenv
 from pandasai import SmartDataframe
