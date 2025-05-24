@@ -1,0 +1,109 @@
+import os
+import pandas as pd
+import streamlit as st
+from pandasai import SmartDataframe
+from pandasai.responses.response_parser import ResponseParser
+from dotenv import load_dotenv
+from langchain_groq.chat_models import ChatGroq
+from langchain_google_genai import GoogleGenerativeAI
+
+# Load environment variables from .env file
+load_dotenv()
+
+# --- Custom Streamlit Response Parser ---
+class StreamlitResponse(ResponseParser):
+    def __init__(self, context):
+        super().__init__(context)
+
+    def format_dataframe(self, result):
+        st.dataframe(result["value"])
+
+    def format_plot(self, result):
+        plot_val = result["value"]
+        try:
+            import matplotlib.pyplot as plt
+            if hasattr(plot_val, "savefig"):
+                st.pyplot(plot_val)
+                return
+        except ImportError:
+            pass
+
+        try:
+            import plotly.graph_objs as go
+            if isinstance(plot_val, go.Figure):
+                st.plotly_chart(plot_val)
+                return
+        except ImportError:
+            pass
+
+        st.image(plot_val)
+
+    def format_other(self, result):
+        st.write(result["value"])
+
+# --- App Title and Model Selection ---
+st.title("♻️ EcoQuery — Power Your Green Decisions with Data")
+model_choice = st.selectbox("Choose LLM engine", ["Groq (LLaMA)", "Gemini (Google)"])
+
+# --- Load CSV ---
+uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
+
+def load_data(file):
+    return pd.read_csv(file) if file else None
+
+# --- LLM Initialization ---
+llm = None
+
+if model_choice == "Groq (LLaMA)":
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        st.warning("Groq API key not found. Please add GROQ_API_KEY to your .env file.")
+    else:
+        try:
+            llm = ChatGroq(
+                model_name="deepseek-r1-distill-llama-70b",
+                api_key=groq_key
+            )
+            # st.success("Groq model loaded.")
+        except Exception as e:
+            st.error(f"Groq model error: {e}")
+
+elif model_choice == "Gemini (Google)":
+    google_key = os.getenv("GOOGLE_API_KEY")
+    if not google_key:
+        st.warning("Google API key not found. Please add GOOGLE_API_KEY to your .env file.")
+    else:
+        try:
+            llm = GoogleGenerativeAI(api_key=google_key, model="gemini-2.0-flash")
+            # st.success("Gemini model loaded.")
+        except Exception as e:
+            st.error(f"Gemini model error: {e}")
+
+# --- Main Logic ---
+if uploaded_file and llm:
+    data = load_data(uploaded_file)
+
+    # Show full interactive data preview
+    st.write("### Preview of Data")
+    st.dataframe(data)
+
+    try:
+        smart_df = SmartDataframe(data, config={
+            "llm": llm,
+            "response_parser": StreamlitResponse,  # Pass the class, not instance
+            "enforce_privacy": False
+        })
+        st.success("SmartDataframe ready.")
+    except Exception as e:
+        st.error(f"Error initializing SmartDataframe: {e}")
+
+    query = st.text_area("🔎 Enter your query")
+
+    if st.button("Generate") and query:
+        with st.spinner("Generating response..."):
+            try:
+                result = smart_df.chat(query)
+                if result:
+                    st.write(result)
+            except Exception as e:
+                st.error(f"Error generating response: {e}")
